@@ -1,13 +1,13 @@
 services:
-  # PostgreSQL — отдельный контейнер с базой данных
   db:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: hackathon
       POSTGRES_PASSWORD: hackathon
       POSTGRES_DB: toll_roads
+    # 5433 на хосте — если локальный PostgreSQL уже занял 5432
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -15,18 +15,27 @@ services:
       interval: 3s
       timeout: 5s
       retries: 10
+    networks:
+      - toll_net
 
-  # Backend — FastAPI, подключается к db по DATABASE_URL
+  # Backend — FastAPI, подключение к db по DATABASE_URL
   backend:
     build: ./backend
     ports:
       - "8000:8000"
     environment:
-      # Строка подключения: хост db — имя сервиса в docker-compose
+      # строка подключения: хост db — имя сервиса в docker-compose
       DATABASE_URL: postgresql://hackathon:hackathon@db:5432/toll_roads
     depends_on:
       db:
         condition: service_healthy
+    restart: on-failure
+    networks:
+      - toll_net
+
+networks:
+  toll_net:
+    driver: bridge
 
 volumes:
   postgres_data:

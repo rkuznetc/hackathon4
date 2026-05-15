@@ -11,7 +11,7 @@ class Driver(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    profile_type = Column(String, nullable=False)  # например: "standard", "premium"
+    profile_type = Column(String, nullable=False)  # "standard", "premium"
     balance = Column(Float, default=0.0)
 
     trips = relationship("Trip", back_populates="driver")

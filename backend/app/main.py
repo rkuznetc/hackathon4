@@ -4,11 +4,12 @@ from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
-from app.database import Base, engine, get_db
+from app.database import Base, engine, get_db, wait_for_db
 
-# При старте создаём таблицы (без Alembic — для хакатона достаточно)
+# при старте ждём БД и создаём таблицы
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    wait_for_db()
     Base.metadata.create_all(bind=engine)
     yield
 
