@@ -14,16 +14,44 @@ class Driver(Base):
     profile_type = Column(String, nullable=False)  # "standard", "premium"
     balance = Column(Float, default=0.0)
 
-    trips = relationship("Trip", back_populates="driver")
-    transactions = relationship("Transaction", back_populates="driver")
-    notifications = relationship("Notification", back_populates="driver")
+    trips = relationship(
+        "Trip", back_populates="driver", cascade="all, delete-orphan"
+    )
+    transactions = relationship(
+        "Transaction", back_populates="driver", cascade="all, delete-orphan"
+    )
+    notifications = relationship(
+        "Notification", back_populates="driver", cascade="all, delete-orphan"
+    )
+    user = relationship(
+        "User", back_populates="driver", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    driver_id = Column(
+        Integer,
+        ForeignKey("drivers.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    driver = relationship("Driver", back_populates="user")
 
 
 class Trip(Base):
     __tablename__ = "trips"
 
     id = Column(Integer, primary_key=True, index=True)
-    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
+    driver_id = Column(
+        Integer, ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False
+    )
     road_name = Column(String, nullable=False)
     cost = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -35,7 +63,9 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
+    driver_id = Column(
+        Integer, ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False
+    )
     type = Column(String, nullable=False)  # "top_up", "trip"
     amount = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -47,7 +77,9 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     id = Column(Integer, primary_key=True, index=True)
-    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=False)
+    driver_id = Column(
+        Integer, ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False
+    )
     title = Column(String, nullable=False)
     message = Column(String, nullable=False)
     deeplink = Column(String, nullable=True)
