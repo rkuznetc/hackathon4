@@ -1,0 +1,32 @@
+services:
+  # PostgreSQL — отдельный контейнер с базой данных
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hackathon
+      POSTGRES_PASSWORD: hackathon
+      POSTGRES_DB: toll_roads
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hackathon -d toll_roads"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  # Backend — FastAPI, подключается к db по DATABASE_URL
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Строка подключения: хост db — имя сервиса в docker-compose
+      DATABASE_URL: postgresql://hackathon:hackathon@db:5432/toll_roads
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
