@@ -24,8 +24,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # строка подключения: хост db — имя сервиса в docker-compose
       DATABASE_URL: postgresql://hackathon:hackathon@db:5432/toll_roads
+      SECRET_KEY: dev-secret-change-in-production
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
     depends_on:
       db:
         condition: service_healthy
