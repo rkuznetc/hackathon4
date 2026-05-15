@@ -1,15 +1,46 @@
-from datetime import datetime
-
 from sqlalchemy.orm import Session
 
-from app import models, schemas
+from app import models
+from app.schemas import DriverCreate, TopUpCreate, TripCreate
 
 
 def get_driver(db: Session, driver_id: int) -> models.Driver | None:
     return db.query(models.Driver).filter(models.Driver.id == driver_id).first()
 
 
-def create_driver(db: Session, data: schemas.DriverCreate) -> models.Driver:
+def get_user_by_email(db: Session, email: str) -> models.User | None:
+    return db.query(models.User).filter(models.User.email == email).first()
+
+
+def create_user_with_driver(
+    db: Session, *, email: str, password_hash: str, name: str
+) -> models.User:
+    driver = models.Driver(name=name, profile_type="standard", balance=0.0)
+    db.add(driver)
+    db.flush()
+
+    user = models.User(
+        email=email,
+        password_hash=password_hash,
+        driver_id=driver.id,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    db.refresh(driver)
+    return user
+
+
+def delete_driver(db: Session, driver_id: int) -> bool:
+    driver = get_driver(db, driver_id)
+    if not driver:
+        return False
+    db.delete(driver)
+    db.commit()
+    return True
+
+
+def create_driver(db: Session, data: DriverCreate) -> models.Driver:
     driver = models.Driver(
         name=data.name,
         profile_type=data.profile_type,
@@ -21,7 +52,7 @@ def create_driver(db: Session, data: schemas.DriverCreate) -> models.Driver:
     return driver
 
 
-def create_trip(db: Session, driver_id: int, data: schemas.TripCreate) -> models.Trip:
+def create_trip(db: Session, driver_id: int, data: TripCreate) -> models.Trip:
     trip = models.Trip(
         driver_id=driver_id,
         road_name=data.road_name,
@@ -43,7 +74,7 @@ def create_trip(db: Session, driver_id: int, data: schemas.TripCreate) -> models
     return trip
 
 
-def get_trips(db: Session, driver_id: int) -> list[models.Trip]:
+def get_all_trips(db: Session, driver_id: int) -> list[models.Trip]:
     return (
         db.query(models.Trip)
         .filter(models.Trip.driver_id == driver_id)
@@ -52,9 +83,33 @@ def get_trips(db: Session, driver_id: int) -> list[models.Trip]:
     )
 
 
-def top_up_balance(
-    db: Session, driver_id: int, data: schemas.TopUpCreate
-) -> models.Driver:
+def get_trips_paginated(
+    db: Session, driver_id: int, limit: int, offset: int
+) -> tuple[list[models.Trip], int]:
+    query = (
+        db.query(models.Trip)
+        .filter(models.Trip.driver_id == driver_id)
+        .order_by(models.Trip.created_at.desc())
+    )
+    total = query.count()
+    items = query.offset(offset).limit(limit).all()
+    return items, total
+
+
+def get_transactions_paginated(
+    db: Session, driver_id: int, limit: int, offset: int
+) -> tuple[list[models.Transaction], int]:
+    query = (
+        db.query(models.Transaction)
+        .filter(models.Transaction.driver_id == driver_id)
+        .order_by(models.Transaction.created_at.desc())
+    )
+    total = query.count()
+    items = query.offset(offset).limit(limit).all()
+    return items, total
+
+
+def top_up_balance(db: Session, driver_id: int, data: TopUpCreate) -> models.Driver:
     driver = get_driver(db, driver_id)
     driver.balance += data.amount
 
@@ -67,57 +122,3 @@ def top_up_balance(
     db.commit()
     db.refresh(driver)
     return driver
-
-
-def get_forecast(db: Session, driver_id: int) -> schemas.ForecastRead:
-    trips = get_trips(db, driver_id)
-    if not trips:
-        return schemas.ForecastRead(
-            driver_id=driver_id,
-            average_trip_cost=0.0,
-            forecast_30_days=0.0,
-            trip_count=0,
-        )
-
-    total = sum(t.cost for t in trips)
-    avg = total / len(trips)
-    return schemas.ForecastRead(
-        driver_id=driver_id,
-        average_trip_cost=round(avg, 2),
-        forecast_30_days=round(avg * 30, 2),
-        trip_count=len(trips),
-    )
-
-
-def get_notifications(db: Session, driver_id: int) -> list[schemas.NotificationRead]:
-    """Уведомления из БД + динамическое, если баланс ниже прогноза."""
-    stored = (
-        db.query(models.Notification)
-        .filter(models.Notification.driver_id == driver_id)
-        .order_by(models.Notification.created_at.desc())
-        .all()
-    )
-    result = [schemas.NotificationRead.model_validate(n) for n in stored]
-
-    driver = get_driver(db, driver_id)
-    if not driver:
-        return result
-
-    forecast = get_forecast(db, driver_id)
-    if forecast.forecast_30_days > 0 and driver.balance < forecast.forecast_30_days:
-        result.insert(
-            0,
-            schemas.NotificationRead(
-                id=0,
-                driver_id=driver_id,
-                title="Низкий баланс",
-                message=(
-                    f"Баланс {driver.balance:.2f} ₽ ниже прогноза "
-                    f"на 30 дней ({forecast.forecast_30_days:.2f} ₽). Пополните счёт."
-                ),
-                deeplink=f"/drivers/{driver_id}/top-up",
-                created_at=datetime.utcnow(),
-            ),
-        )
-
-    return result
