@@ -1,5 +1,8 @@
 .venv/
+.venv-ml/
 .env
+generator/__pycache__/
+ml/__pycache__/
 backend/app/__pycache__/ 
 backend/app/routers/__pycache__/
 backend/app/schemas/__pycache__/
