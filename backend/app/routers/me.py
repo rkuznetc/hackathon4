@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -6,9 +8,13 @@ from app.config import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT
 from app.database import get_db
 from app.schemas import (
     AccountTransactionRead,
+    AutopayUpdateRequest,
+    AutopayUpdateResponse,
     ForecastRead,
+    MeSummaryResponse,
     PaginatedResponse,
     RecommendationEventRead,
+    RecommendationRespondRequest,
     StatsRead,
     TopUpRequest,
     TopUpResponse,
@@ -21,6 +27,7 @@ from app.security import get_current_vehicle
 from app.services.forecast_service import calculate_vehicle_forecast
 from app.services.recommendation_service import get_vehicle_recommendations
 from app.services.stats_service import calculate_vehicle_stats
+from app.services.summary_service import build_me_summary
 
 router = APIRouter(
     prefix="/me", tags=["me (mobile)"]
@@ -30,6 +37,29 @@ router = APIRouter(
 @router.get("/profile", response_model=VehicleProfile)
 def me_profile(vehicle: models.Vehicle = Depends(get_current_vehicle)):
     return vehicle
+
+
+@router.get("/summary", response_model=MeSummaryResponse)
+def me_summary(
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
+    db: Session = Depends(get_db),
+):
+    return build_me_summary(db, vehicle)
+
+
+@router.patch("/autopay", response_model=AutopayUpdateResponse)
+def me_autopay(
+    data: AutopayUpdateRequest,
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
+    db: Session = Depends(get_db),
+):
+    vehicle.autopay_enabled = data.autopay_enabled
+    db.commit()
+    db.refresh(vehicle)
+    return AutopayUpdateResponse(
+        vehicle_id=vehicle.vehicle_id,
+        autopay_enabled=vehicle.autopay_enabled,
+    )
 
 
 @router.get("/balance", response_model=VehicleBalance)
@@ -86,6 +116,38 @@ def me_recommendations(
     offset: int = Query(0, ge=0),
 ):
     return get_vehicle_recommendations(db, vehicle.vehicle_id, limit, offset)
+
+
+@router.post(
+    "/recommendations/{event_id}/respond",
+    response_model=RecommendationEventRead,
+)
+def me_recommendation_respond(
+    event_id: int,
+    body: RecommendationRespondRequest,
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
+    db: Session = Depends(get_db),
+):
+    ev = (
+        db.query(models.RecommendationEvent)
+        .filter(models.RecommendationEvent.event_id == event_id)
+        .first()
+    )
+    if ev is None or ev.vehicle_id != vehicle.vehicle_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Рекомендация не найдена",
+        )
+    if ev.status != "shown":
+        raise HTTPException(
+            status_code=400,
+            detail="Рекомендация уже обработана",
+        )
+    ev.status = body.status
+    ev.responded_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
+    db.refresh(ev)
+    return RecommendationEventRead.model_validate(ev)
 
 
 @router.get("/behavior", response_model=VehicleBehaviorFeaturesRead)
