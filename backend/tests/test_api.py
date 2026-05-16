@@ -478,6 +478,8 @@ def test_me_summary_with_token_returns_expected_sections(client, auth_headers):
     assert "forecast" in body
     assert "stats" in body
     assert "recommendations" in body
+    assert "ml" in body
+    assert body["ml"]["available"] is False
     assert "license_plate" in body["vehicle"]
     assert "current_balance" in body["balance"]
     assert "forecast_amount" in body["forecast"]

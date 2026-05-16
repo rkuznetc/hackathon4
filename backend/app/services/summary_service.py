@@ -15,6 +15,8 @@ from app.services.recommendation_service import (
     get_latest_stored_shown_recommendations,
 )
 from app.services.stats_service import calculate_vehicle_stats
+from app.services.ml_model_service import summary_ml_block
+from app.schemas.common import MeSummaryMl
 
 
 def build_me_summary(db: Session, vehicle: models.Vehicle) -> MeSummaryResponse:
@@ -51,6 +53,16 @@ def build_me_summary(db: Session, vehicle: models.Vehicle) -> MeSummaryResponse:
     active = count_stored_shown_recommendations(db, vid)
     latest = get_latest_stored_shown_recommendations(db, vid, limit=3)
 
+    ml_raw = summary_ml_block(db, vid)
+    ml_part = MeSummaryMl(
+        available=ml_raw["available"],
+        reason=ml_raw.get("reason"),
+        spend_forecast_7d=ml_raw.get("spend_forecast_7d"),
+        spend_forecast_30d=ml_raw.get("spend_forecast_30d"),
+        debt_risk_7d=ml_raw.get("debt_risk_7d"),
+        top_recommendation_event_id=ml_raw.get("top_recommendation_event_id"),
+    )
+
     return MeSummaryResponse(
         vehicle=vehicle_part,
         balance=balance_part,
@@ -60,4 +72,5 @@ def build_me_summary(db: Session, vehicle: models.Vehicle) -> MeSummaryResponse:
             active_count=active,
             latest=latest,
         ),
+        ml=ml_part,
     )
