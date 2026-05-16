@@ -184,3 +184,76 @@ class StatsRead(BaseModel):
     trip_count: int
     paid_trip_count: int
     unpaid_trip_count: int
+
+
+# --- Recommendation respond ---
+RecommendationRespondAction = Literal["accepted", "dismissed"]
+
+
+class RecommendationRespondRequest(BaseModel):
+    status: RecommendationRespondAction
+
+
+# --- Me summary (home screen) ---
+class MeSummaryVehicle(BaseModel):
+    vehicle_id: int
+    license_plate: str
+    owner_name: str
+    account_status: AccountStatus
+    has_subscription: bool
+    subscription_type: Optional[SubscriptionType] = None
+    subscription_valid_until: Optional[date] = None
+
+
+class MeSummaryBalance(BaseModel):
+    current_balance: Decimal
+    autopay_enabled: bool
+
+
+class MeSummaryForecast(BaseModel):
+    horizon_days: int
+    forecast_amount: Decimal
+    average_trip_amount: Decimal
+    trip_count: int
+
+
+class MeSummaryStats(BaseModel):
+    total_spent: Decimal
+    average_trip_amount: Decimal
+    trip_count: int
+    paid_trip_count: int
+    unpaid_trip_count: int
+
+
+class MeSummaryRecommendations(BaseModel):
+    active_count: int
+    latest: list[RecommendationEventRead]
+
+
+class MeSummaryResponse(BaseModel):
+    vehicle: MeSummaryVehicle
+    balance: MeSummaryBalance
+    forecast: MeSummaryForecast
+    stats: MeSummaryStats
+    recommendations: MeSummaryRecommendations
+
+
+# --- Autopay toggle ---
+class AutopayUpdateRequest(BaseModel):
+    autopay_enabled: bool
+
+
+class AutopayUpdateResponse(BaseModel):
+    vehicle_id: int
+    autopay_enabled: bool
+
+
+# --- Health ---
+class HealthLiveResponse(BaseModel):
+    status: str
+    service: str
+
+
+class HealthReadyResponse(BaseModel):
+    status: str
+    database: str
