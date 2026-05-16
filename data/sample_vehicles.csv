@@ -1,3 +1,3 @@
-license_plate,owner_name,registered_at,phone,current_balance,autopay_enabled,has_subscription,subscription_type,subscription_valid_until,account_status
-IMP-X100,CSV Импорт Один,2026-01-01,+79002002001,2500.00,false,false,,,active
-IMP-X200,CSV Импорт Два,2026-01-02,+79002002002,150.00,true,false,,,debt
+vehicle_id,license_plate,owner_name,registered_at,phone,current_balance,autopay_enabled,has_subscription,subscription_type,subscription_valid_until,account_status
+1,IMP-X100,CSV Импорт Один,2026-01-01,+79002002001,2500.00,false,false,,,active
+2,IMP-X200,CSV Импорт Два,2026-01-02,+79002002002,150.00,true,false,,,debt
