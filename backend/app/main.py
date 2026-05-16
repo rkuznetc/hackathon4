@@ -5,7 +5,7 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.exc import ProgrammingError
 
 from app.database import Base, wait_for_db
-from app.routers import auth, me, vehicles
+from app.routers import auth, health, me, vehicles
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -37,6 +37,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(me.router)
 app.include_router(vehicles.router)
