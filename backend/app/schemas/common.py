@@ -230,12 +230,22 @@ class MeSummaryRecommendations(BaseModel):
     latest: list[RecommendationEventRead]
 
 
+class MeSummaryMl(BaseModel):
+    available: bool
+    reason: Optional[str] = None
+    spend_forecast_7d: Optional[Decimal] = None
+    spend_forecast_30d: Optional[Decimal] = None
+    debt_risk_7d: Optional[float] = None
+    top_recommendation_event_id: Optional[int] = None
+
+
 class MeSummaryResponse(BaseModel):
     vehicle: MeSummaryVehicle
     balance: MeSummaryBalance
     forecast: MeSummaryForecast
     stats: MeSummaryStats
     recommendations: MeSummaryRecommendations
+    ml: MeSummaryMl
 
 
 # --- Autopay toggle ---
@@ -257,3 +267,49 @@ class HealthLiveResponse(BaseModel):
 class HealthReadyResponse(BaseModel):
     status: str
     database: str
+
+
+# --- ML inference (/me/ml) ---
+class MlStatusResponse(BaseModel):
+    available: bool
+    models_dir: str
+    reason: Optional[str] = None
+    trained_at: Optional[str] = None
+    models: Optional[list[str]] = None
+    metadata: Optional[dict] = None
+
+
+class MlModelMetadataBrief(BaseModel):
+    trained_at: Optional[str] = None
+    version: Optional[str] = None
+
+
+class MlPredictionsResponse(BaseModel):
+    available: bool
+    reason: Optional[str] = None
+    vehicle_id: Optional[int] = None
+    snapshot_at: Optional[str] = None
+    spend_forecast_7d: Optional[Decimal] = None
+    spend_forecast_30d: Optional[Decimal] = None
+    debt_risk_7d: Optional[float] = None
+    model_metadata: Optional[MlModelMetadataBrief] = None
+
+
+class MlRankedRecommendationItem(BaseModel):
+    event_id: int
+    recommendation_type: str
+    title: str
+    deep_link: Optional[str] = None
+    status: str
+    acceptance_probability: Optional[float] = None
+    debt_risk_7d: Optional[float] = None
+    estimated_value: Optional[Decimal] = None
+    business_priority: int
+    hybrid_score: Optional[float] = None
+
+
+class MlRecommendationsResponse(BaseModel):
+    available: bool
+    reason: Optional[str] = None
+    vehicle_id: Optional[int] = None
+    items: list[MlRankedRecommendationItem] = []
