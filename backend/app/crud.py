@@ -72,6 +72,7 @@ def create_user_with_vehicle(
     user = models.User(
         password_hash=password_hash,
         vehicle_id=vehicle.vehicle_id,
+        is_admin=False,
     )
     db.add(user)
     db.commit()

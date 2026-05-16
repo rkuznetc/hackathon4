@@ -67,6 +67,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     password_hash = Column(String, nullable=False)
+    is_admin = Column(Boolean, nullable=False, default=False)
     vehicle_id = Column(
         Integer,
         ForeignKey("vehicles.vehicle_id", ondelete="CASCADE"),
