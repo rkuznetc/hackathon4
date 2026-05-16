@@ -5,42 +5,53 @@ from app import crud, models
 from app.config import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT
 from app.database import get_db
 from app.schemas import (
-    BalanceRead,
-    DriverProfile,
+    AccountTransactionRead,
     ForecastRead,
-    NotificationRead,
     PaginatedResponse,
+    RecommendationEventRead,
     StatsRead,
-    TopUpCreate,
-    TransactionRead,
+    TopUpRequest,
+    TopUpResponse,
     TripRead,
+    VehicleBalance,
+    VehicleBehaviorFeaturesRead,
+    VehicleProfile,
 )
-from app.security import get_current_driver
-from app.services.forecast_service import calculate_driver_forecast
-from app.services.notification_service import get_driver_notifications
-from app.services.stats_service import calculate_driver_stats
+from app.security import get_current_vehicle
+from app.services.forecast_service import calculate_vehicle_forecast
+from app.services.recommendation_service import get_vehicle_recommendations
+from app.services.stats_service import calculate_vehicle_stats
 
-router = APIRouter(prefix="/me", tags=["me (mobile)"])
-
-
-@router.get("/profile", response_model=DriverProfile)
-def me_profile(driver: models.Driver = Depends(get_current_driver)):
-    return driver
+router = APIRouter(
+    prefix="/me", tags=["me (mobile)"]
+)
 
 
-@router.get("/balance", response_model=BalanceRead)
-def me_balance(driver: models.Driver = Depends(get_current_driver)):
-    return BalanceRead(driver_id=driver.id, balance=driver.balance)
+@router.get("/profile", response_model=VehicleProfile)
+def me_profile(vehicle: models.Vehicle = Depends(get_current_vehicle)):
+    return vehicle
+
+
+@router.get("/balance", response_model=VehicleBalance)
+def me_balance(vehicle: models.Vehicle = Depends(get_current_vehicle)):
+    return VehicleBalance(
+        vehicle_id=vehicle.vehicle_id,
+        current_balance=vehicle.current_balance,
+        account_status=vehicle.account_status,
+        autopay_enabled=vehicle.autopay_enabled,
+    )
 
 
 @router.get("/trips", response_model=PaginatedResponse[TripRead])
 def me_trips(
-    driver: models.Driver = Depends(get_current_driver),
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
     db: Session = Depends(get_db),
     limit: int = Query(DEFAULT_PAGE_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
     offset: int = Query(0, ge=0),
 ):
-    items, total = crud.get_trips_paginated(db, driver.id, limit, offset)
+    items, total = crud.get_trips_paginated(
+        db, vehicle.vehicle_id, limit, offset
+    )
     return PaginatedResponse(
         items=[TripRead.model_validate(t) for t in items],
         total=total,
@@ -49,56 +60,75 @@ def me_trips(
     )
 
 
-@router.get("/transactions", response_model=PaginatedResponse[TransactionRead])
+@router.get("/transactions", response_model=PaginatedResponse[AccountTransactionRead])
 def me_transactions(
-    driver: models.Driver = Depends(get_current_driver),
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
     db: Session = Depends(get_db),
     limit: int = Query(DEFAULT_PAGE_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
     offset: int = Query(0, ge=0),
 ):
-    items, total = crud.get_transactions_paginated(db, driver.id, limit, offset)
+    items, total = crud.get_transactions_paginated(
+        db, vehicle.vehicle_id, limit, offset
+    )
     return PaginatedResponse(
-        items=[TransactionRead.model_validate(t) for t in items],
+        items=[AccountTransactionRead.model_validate(t) for t in items],
         total=total,
         limit=limit,
         offset=offset,
     )
 
 
-@router.get("/forecast", response_model=ForecastRead)
-def me_forecast(
-    driver: models.Driver = Depends(get_current_driver),
-    db: Session = Depends(get_db),
-):
-    return calculate_driver_forecast(db, driver.id)
-
-
-@router.get("/notifications", response_model=PaginatedResponse[NotificationRead])
-def me_notifications(
-    driver: models.Driver = Depends(get_current_driver),
+@router.get("/recommendations", response_model=PaginatedResponse[RecommendationEventRead])
+def me_recommendations(
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
     db: Session = Depends(get_db),
     limit: int = Query(DEFAULT_PAGE_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
     offset: int = Query(0, ge=0),
 ):
-    return get_driver_notifications(db, driver.id, limit, offset)
+    return get_vehicle_recommendations(db, vehicle.vehicle_id, limit, offset)
+
+
+@router.get("/behavior", response_model=VehicleBehaviorFeaturesRead)
+def me_behavior(
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
+    db: Session = Depends(get_db),
+):
+    row = crud.get_behavior_features(db, vehicle.vehicle_id)
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Поведенческие признаки для автомобиля ещё не рассчитаны",
+        )
+    return row
+
+
+@router.get("/forecast", response_model=ForecastRead)
+def me_forecast(
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
+    db: Session = Depends(get_db),
+):
+    return calculate_vehicle_forecast(db, vehicle.vehicle_id)
 
 
 @router.get("/stats", response_model=StatsRead)
 def me_stats(
-    driver: models.Driver = Depends(get_current_driver),
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
     db: Session = Depends(get_db),
     period: str = Query(default="month", pattern="^(week|month|all)$"),
 ):
-    return calculate_driver_stats(db, driver.id, period)
+    return calculate_vehicle_stats(db, vehicle.vehicle_id, period)
 
 
-@router.post("/top-up", response_model=BalanceRead)
+@router.post("/top-up", response_model=TopUpResponse)
 def me_top_up(
-    data: TopUpCreate,
-    driver: models.Driver = Depends(get_current_driver),
+    data: TopUpRequest,
+    vehicle: models.Vehicle = Depends(get_current_vehicle),
     db: Session = Depends(get_db),
 ):
-    if data.amount <= 0:
-        raise HTTPException(status_code=400, detail="Сумма пополнения должна быть > 0")
-    updated = crud.top_up_balance(db, driver.id, data)
-    return BalanceRead(driver_id=updated.id, balance=updated.balance)
+    updated, tx = crud.top_up_balance(db, vehicle.vehicle_id, data)
+    return TopUpResponse(
+        vehicle_id=updated.vehicle_id,
+        current_balance=updated.current_balance,
+        account_status=updated.account_status,
+        transaction=AccountTransactionRead.model_validate(tx),
+    )
