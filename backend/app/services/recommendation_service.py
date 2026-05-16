@@ -69,3 +69,31 @@ def get_vehicle_recommendations(
         limit=limit,
         offset=offset,
     )
+
+
+def count_stored_shown_recommendations(db: Session, vehicle_id: int) -> int:
+    """Только строки в БД со status='shown' (без динамической topup_forecast)."""
+    return (
+        db.query(models.RecommendationEvent)
+        .filter(
+            models.RecommendationEvent.vehicle_id == vehicle_id,
+            models.RecommendationEvent.status == "shown",
+        )
+        .count()
+    )
+
+
+def get_latest_stored_shown_recommendations(
+    db: Session, vehicle_id: int, limit: int = 3
+) -> list[RecommendationEventRead]:
+    rows = (
+        db.query(models.RecommendationEvent)
+        .filter(
+            models.RecommendationEvent.vehicle_id == vehicle_id,
+            models.RecommendationEvent.status == "shown",
+        )
+        .order_by(models.RecommendationEvent.shown_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [RecommendationEventRead.model_validate(r) for r in rows]
