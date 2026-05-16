@@ -1,24 +1,32 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
+class AuthRegisterRequest(BaseModel):
+    phone: str = Field(min_length=5, max_length=20)
     password: str = Field(min_length=6)
-    name: str = Field(min_length=1)
+    license_plate: str = Field(min_length=1, max_length=16)
+    owner_name: str = Field(min_length=1, max_length=100)
 
 
-class LoginRequest(BaseModel):
-    email: EmailStr
+class AuthLoginRequest(BaseModel):
+    phone: str = Field(min_length=5, max_length=20)
     password: str
 
 
-class UserInfo(BaseModel):
+class UserSummary(BaseModel):
     id: int
-    email: str
-    driver_id: int
+    phone: str
+    vehicle_id: int
 
 
-class TokenResponse(BaseModel):
+class VehicleSummary(BaseModel):
+    vehicle_id: int
+    license_plate: str
+    owner_name: str
+
+
+class AuthTokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: UserInfo
+    user: UserSummary
+    vehicle: VehicleSummary
