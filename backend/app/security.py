@@ -69,15 +69,19 @@ def get_current_user(
     return user
 
 
-def get_current_driver(
+def get_current_vehicle(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> models.Driver:
-    driver = db.query(models.Driver).filter(models.Driver.id == current_user.driver_id).first()
-    if driver is None:
+) -> models.Vehicle:
+    vehicle = (
+        db.query(models.Vehicle)
+        .filter(models.Vehicle.vehicle_id == current_user.vehicle_id)
+        .first()
+    )
+    if vehicle is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Водитель не найден",
+            detail="Автомобиль не найден",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return driver
+    return vehicle
