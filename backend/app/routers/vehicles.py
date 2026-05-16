@@ -19,11 +19,14 @@ from app.schemas import (
     VehicleCreate,
     VehicleProfile,
 )
+from app.security import get_current_admin_user
 from app.services.forecast_service import calculate_vehicle_forecast
 from app.services.recommendation_service import get_vehicle_recommendations
 from app.services.stats_service import calculate_vehicle_stats
 
-router = APIRouter(prefix="/vehicles", tags=["vehicles (dev/admin)"])
+_REQUIRE_ADMIN = [Depends(get_current_admin_user)]
+
+router = APIRouter(prefix="/vehicles", tags=["vehicles (admin)"])
 
 
 def _ensure_vehicle(db: Session, vehicle_id: int) -> None:
@@ -31,7 +34,12 @@ def _ensure_vehicle(db: Session, vehicle_id: int) -> None:
         raise HTTPException(status_code=404, detail="Автомобиль не найден")
 
 
-@router.post("", response_model=VehicleProfile, status_code=201)
+@router.post(
+    "",
+    response_model=VehicleProfile,
+    status_code=201,
+    dependencies=_REQUIRE_ADMIN,
+)
 def create_vehicle(data: VehicleCreate, db: Session = Depends(get_db)):
     if crud.get_vehicle_by_phone(db, data.phone.strip()):
         raise HTTPException(
@@ -42,13 +50,17 @@ def create_vehicle(data: VehicleCreate, db: Session = Depends(get_db)):
     return crud.create_vehicle(db, data)
 
 
-@router.delete("/{vehicle_id}", status_code=204)
+@router.delete("/{vehicle_id}", status_code=204, dependencies=_REQUIRE_ADMIN)
 def delete_vehicle(vehicle_id: int, db: Session = Depends(get_db)):
     if not crud.delete_vehicle(db, vehicle_id):
         raise HTTPException(status_code=404, detail="Автомобиль не найден")
 
 
-@router.get("/{vehicle_id}/profile", response_model=VehicleProfile)
+@router.get(
+    "/{vehicle_id}/profile",
+    response_model=VehicleProfile,
+    dependencies=_REQUIRE_ADMIN,
+)
 def get_profile(vehicle_id: int, db: Session = Depends(get_db)):
     vehicle = crud.get_vehicle(db, vehicle_id)
     if vehicle is None:
@@ -56,7 +68,11 @@ def get_profile(vehicle_id: int, db: Session = Depends(get_db)):
     return vehicle
 
 
-@router.get("/{vehicle_id}/balance", response_model=VehicleBalance)
+@router.get(
+    "/{vehicle_id}/balance",
+    response_model=VehicleBalance,
+    dependencies=_REQUIRE_ADMIN,
+)
 def get_balance(vehicle_id: int, db: Session = Depends(get_db)):
     vehicle = crud.get_vehicle(db, vehicle_id)
     if vehicle is None:
@@ -69,7 +85,11 @@ def get_balance(vehicle_id: int, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/{vehicle_id}/trips", response_model=PaginatedResponse[TripRead])
+@router.get(
+    "/{vehicle_id}/trips",
+    response_model=PaginatedResponse[TripRead],
+    dependencies=_REQUIRE_ADMIN,
+)
 def list_trips(
     vehicle_id: int,
     db: Session = Depends(get_db),
@@ -86,7 +106,12 @@ def list_trips(
     )
 
 
-@router.post("/{vehicle_id}/trips", response_model=TripRead, status_code=201)
+@router.post(
+    "/{vehicle_id}/trips",
+    response_model=TripRead,
+    status_code=201,
+    dependencies=_REQUIRE_ADMIN,
+)
 def add_trip(
     vehicle_id: int, data: TripCreate, db: Session = Depends(get_db)
 ):
@@ -96,7 +121,11 @@ def add_trip(
     return trip
 
 
-@router.post("/{vehicle_id}/top-up", response_model=TopUpResponse)
+@router.post(
+    "/{vehicle_id}/top-up",
+    response_model=TopUpResponse,
+    dependencies=_REQUIRE_ADMIN,
+)
 def top_up(
     vehicle_id: int, data: TopUpRequest, db: Session = Depends(get_db)
 ):
@@ -111,7 +140,11 @@ def top_up(
     )
 
 
-@router.get("/{vehicle_id}/transactions", response_model=PaginatedResponse[AccountTransactionRead])
+@router.get(
+    "/{vehicle_id}/transactions",
+    response_model=PaginatedResponse[AccountTransactionRead],
+    dependencies=_REQUIRE_ADMIN,
+)
 def list_transactions(
     vehicle_id: int,
     db: Session = Depends(get_db),
@@ -133,6 +166,7 @@ def list_transactions(
 @router.get(
     "/{vehicle_id}/recommendations",
     response_model=PaginatedResponse[RecommendationEventRead],
+    dependencies=_REQUIRE_ADMIN,
 )
 def list_recommendations(
     vehicle_id: int,
@@ -144,7 +178,11 @@ def list_recommendations(
     return get_vehicle_recommendations(db, vehicle_id, limit, offset)
 
 
-@router.get("/{vehicle_id}/behavior", response_model=VehicleBehaviorFeaturesRead)
+@router.get(
+    "/{vehicle_id}/behavior",
+    response_model=VehicleBehaviorFeaturesRead,
+    dependencies=_REQUIRE_ADMIN,
+)
 def get_behavior(vehicle_id: int, db: Session = Depends(get_db)):
     _ensure_vehicle(db, vehicle_id)
     row = crud.get_behavior_features(db, vehicle_id)
@@ -156,13 +194,21 @@ def get_behavior(vehicle_id: int, db: Session = Depends(get_db)):
     return row
 
 
-@router.get("/{vehicle_id}/forecast", response_model=ForecastRead)
+@router.get(
+    "/{vehicle_id}/forecast",
+    response_model=ForecastRead,
+    dependencies=_REQUIRE_ADMIN,
+)
 def get_forecast(vehicle_id: int, db: Session = Depends(get_db)):
     _ensure_vehicle(db, vehicle_id)
     return calculate_vehicle_forecast(db, vehicle_id)
 
 
-@router.get("/{vehicle_id}/stats", response_model=StatsRead)
+@router.get(
+    "/{vehicle_id}/stats",
+    response_model=StatsRead,
+    dependencies=_REQUIRE_ADMIN,
+)
 def get_stats(
     vehicle_id: int,
     db: Session = Depends(get_db),
