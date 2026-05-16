@@ -10,7 +10,7 @@
 повторным полным развёртыванием.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from decimal import Decimal
 
 from app import models
@@ -70,7 +70,19 @@ def seed():
             subscription_valid_until=date(2026, 12, 31),
             account_status="active",
         )
-        db.add_all([v1, v2, v3])
+        v_admin = models.Vehicle(
+            license_plate="DEMO-ADMIN",
+            owner_name="Администратор",
+            registered_at=date(2025, 6, 1),
+            phone="+79001009999",
+            current_balance=Decimal("0.00"),
+            autopay_enabled=False,
+            has_subscription=False,
+            subscription_type=None,
+            subscription_valid_until=None,
+            account_status="active",
+        )
+        db.add_all([v1, v2, v3, v_admin])
         db.flush()
 
         db.add_all(
@@ -78,14 +90,22 @@ def seed():
                 models.User(
                     password_hash=get_password_hash("password123"),
                     vehicle_id=v1.vehicle_id,
+                    is_admin=False,
                 ),
                 models.User(
                     password_hash=get_password_hash("password123"),
                     vehicle_id=v2.vehicle_id,
+                    is_admin=False,
                 ),
                 models.User(
                     password_hash=get_password_hash("password123"),
                     vehicle_id=v3.vehicle_id,
+                    is_admin=False,
+                ),
+                models.User(
+                    password_hash=get_password_hash("admin123"),
+                    vehicle_id=v_admin.vehicle_id,
+                    is_admin=True,
                 ),
             ]
         )
@@ -235,6 +255,16 @@ def seed():
                     related_transaction_id=None,
                 ),
                 models.RecommendationEvent(
+                    vehicle_id=v1.vehicle_id,
+                    shown_at=datetime(2026, 1, 13, 9, 0, 0),
+                    recommendation_type="topup_balance",
+                    title="Пополните счёт для поездок",
+                    status="shown",
+                    responded_at=None,
+                    deep_link="/me/top-up",
+                    related_transaction_id=None,
+                ),
+                models.RecommendationEvent(
                     vehicle_id=v2.vehicle_id,
                     shown_at=datetime(2026, 1, 11, 9, 0, 0),
                     recommendation_type="repay_debt",
@@ -301,9 +331,14 @@ def seed():
         )
 
         db.commit()
-        print("Seed выполнен (3 автомобиля + пользователи + поездки + операции).")
         print(
-            "Демо-логин: телефон любого из +79001001001..03, пароль: password123"
+            "Seed выполнен (4 автомобиля + пользователи, в т.ч. admin + поездки + операции)."
+        )
+        print(
+            "Обычный демо-логин: +79001001001..03 / password123"
+        )
+        print(
+            "Admin (для /vehicles/*): телефон +79001009999, пароль admin123"
         )
     finally:
         db.close()
