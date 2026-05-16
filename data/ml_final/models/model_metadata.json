@@ -1,0 +1,60 @@
+{
+  "trained_at": "2026-05-16T07:54:43.609735+00:00",
+  "data_dir": "/home/gwyllan/projects/sirius/hackathon4/data",
+  "out_dir": "/home/gwyllan/projects/sirius/hackathon4/data/ml_final",
+  "random_state": 42,
+  "vehicles": 100,
+  "snapshot_rows": 269,
+  "sklearn_version": "1.6.0",
+  "pandas_version": "2.2.3",
+  "numpy_version": "2.2.1",
+  "python_version": "3.12.3",
+  "saved_models": [],
+  "metrics": {
+    "spend_7d": {
+      "mae": 291.71265701810654,
+      "rmse": 434.2017205798185,
+      "r2": 0.8581517160108314
+    },
+    "spend_30d": {
+      "mae": 469.2339390347661,
+      "rmse": 638.0227291511743,
+      "r2": 0.8753287595857308
+    },
+    "debt_risk": {
+      "roc_auc": 0.9080357142857143,
+      "pr_auc": 0.8448459752807578,
+      "f1_0_5": 0.6666666666666666
+    },
+    "segmentation": {
+      "method": "KMeans_k5_compact_snapshot",
+      "k": 5,
+      "vehicles": 93,
+      "silhouette": 0.4369939732405014,
+      "davies_bouldin": 0.7769000362515337,
+      "calinski_harabasz": 53.54589506935609,
+      "ari_vs_hidden_profile": 0.5669756123130797
+    },
+    "acceptance": {
+      "task": "recommendation_acceptance",
+      "method": "smoothed_acceptance_rate_by_recommendation_type",
+      "train_rows": 84,
+      "test_rows": 21,
+      "roc_auc": 0.6018518518518519,
+      "pr_auc": 0.6264880952380952,
+      "precision_0_5": 0.5714285714285714,
+      "recall_0_5": 1.0,
+      "f1_0_5": 0.7272727272727273,
+      "precision_top20pct": 0.625,
+      "recall_top20pct": 0.4166666666666667,
+      "alert_rate_top20pct": 0.38095238095238093,
+      "positive_rate": 0.5714285714285714
+    }
+  },
+  "runtime_models": [
+    "spend_7d_model",
+    "spend_30d_model",
+    "debt_risk_model"
+  ],
+  "segmentation_runtime": false
+}

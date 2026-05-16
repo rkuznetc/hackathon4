@@ -1,0 +1,20 @@
+[
+  "w30_trips",
+  "w30_spend",
+  "w30_avg_amount",
+  "w30_avg_duration",
+  "w30_active_days",
+  "w30_weekend_share",
+  "w30_morning_share",
+  "w30_short_share",
+  "w30_long_share",
+  "w30_zero_share",
+  "w30_trips_per_active_day",
+  "total_trips_to_date",
+  "days_since_registration",
+  "balance_at_snapshot",
+  "tx30_topup_count",
+  "tx30_fine_count",
+  "tx30_negative_balance_events",
+  "days_since_last_trip"
+]
