@@ -23,6 +23,8 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    volumes:
+      - ./data:/app/data:ro
     environment:
       DATABASE_URL: postgresql://hackathon:hackathon@db:5432/toll_roads
       SECRET_KEY: dev-secret-change-in-production
