@@ -84,7 +84,9 @@ def test_top_up_creates_account_transaction(client, auth_headers):
     assert items[0]["direction"] == "credit"
 
 
-def test_create_trip_creates_trip_and_trip_charge_transaction(client, auth_headers):
+def test_create_trip_creates_trip_and_trip_charge_transaction(
+    client, auth_headers, admin_headers
+):
     client.post(
         "/me/top-up",
         json={"amount": "5000.00"},
@@ -102,6 +104,7 @@ def test_create_trip_creates_trip_and_trip_charge_transaction(client, auth_heade
             "is_paid": True,
             "payment_due_at": "2026-03-02T23:59:00",
         },
+        headers=admin_headers,
     )
     assert trip_resp.status_code == 201
     assert trip_resp.json()["trip_amount"] == "250.00"
@@ -228,7 +231,7 @@ def test_vehicle_behavior_features_read(client, auth_headers, db_session):
     assert r.json()["segment_code"] == "commuter"
 
 
-def test_delete_vehicle_cascades_related_data(client, db_session):
+def test_delete_vehicle_cascades_related_data(client, db_session, admin_headers):
     reg = client.post(
         "/auth/register",
         json={
@@ -250,18 +253,19 @@ def test_delete_vehicle_cascades_related_data(client, db_session):
             "is_paid": False,
             "payment_due_at": "2026-07-02T23:59:00",
         },
+        headers=admin_headers,
     )
 
-    del_r = client.delete(f"/vehicles/{vid}")
+    del_r = client.delete(f"/vehicles/{vid}", headers=admin_headers)
     assert del_r.status_code == 204
 
-    assert db_session.query(models.User).count() == 0
-    assert db_session.query(models.Vehicle).count() == 0
-    assert db_session.query(models.Trip).count() == 0
+    assert db_session.query(models.User).filter_by(vehicle_id=vid).count() == 0
+    assert db_session.query(models.Vehicle).filter_by(vehicle_id=vid).count() == 0
+    assert db_session.query(models.Trip).filter_by(vehicle_id=vid).count() == 0
 
 
 def test_invalid_trip_exited_before_entered_returns_422_or_400(
-    client, auth_headers
+    client, auth_headers, admin_headers
 ):
     prof = client.get("/me/profile", headers=auth_headers).json()
     vid = prof["vehicle_id"]
@@ -274,6 +278,7 @@ def test_invalid_trip_exited_before_entered_returns_422_or_400(
             "is_paid": True,
             "payment_due_at": "2026-08-02T12:00:00",
         },
+        headers=admin_headers,
     )
     assert response.status_code == 422
 
@@ -284,3 +289,267 @@ def test_invalid_login_returns_401(client):
         json={"phone": "+79995555555", "password": "wrong"},
     )
     assert response.status_code == 401
+
+
+# --- Admin /vehicles security ---
+
+
+def test_vehicle_admin_endpoint_without_token_returns_401(client, auth_headers):
+    vid = client.get("/me/profile", headers=auth_headers).json()["vehicle_id"]
+    assert client.get(f"/vehicles/{vid}/profile").status_code == 401
+
+
+def test_vehicle_admin_endpoint_with_regular_user_returns_403(client, auth_headers):
+    vid = client.get("/me/profile", headers=auth_headers).json()["vehicle_id"]
+    r = client.get(f"/vehicles/{vid}/profile", headers=auth_headers)
+    assert r.status_code == 403
+
+
+def test_vehicle_admin_endpoint_with_admin_user_returns_200(
+    client, auth_headers, admin_headers
+):
+    vid = client.get("/me/profile", headers=auth_headers).json()["vehicle_id"]
+    r = client.get(f"/vehicles/{vid}/profile", headers=admin_headers)
+    assert r.status_code == 200
+
+
+def test_me_endpoint_with_regular_user_still_works(client, auth_headers):
+    assert client.get("/me/profile", headers=auth_headers).status_code == 200
+
+
+# --- Recommendation respond ---
+
+
+def test_me_recommendation_respond_accepts_own_recommendation(
+    client, auth_headers, db_session
+):
+    vid = client.get("/me/profile", headers=auth_headers).json()["vehicle_id"]
+    ev = models.RecommendationEvent(
+        vehicle_id=vid,
+        shown_at=datetime(2026, 10, 1, 12, 0, 0),
+        recommendation_type="enable_autopay",
+        title="Resp test",
+        status="shown",
+        deep_link=None,
+    )
+    db_session.add(ev)
+    db_session.commit()
+    db_session.refresh(ev)
+    r = client.post(
+        f"/me/recommendations/{ev.event_id}/respond",
+        headers=auth_headers,
+        json={"status": "accepted"},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "accepted"
+    assert r.json()["responded_at"] is not None
+
+
+def test_me_recommendation_respond_dismisses_own_recommendation(
+    client, auth_headers, db_session
+):
+    vid = client.get("/me/profile", headers=auth_headers).json()["vehicle_id"]
+    ev = models.RecommendationEvent(
+        vehicle_id=vid,
+        shown_at=datetime(2026, 10, 2, 12, 0, 0),
+        recommendation_type="buy_subscription",
+        title="Dismiss test",
+        status="shown",
+        deep_link=None,
+    )
+    db_session.add(ev)
+    db_session.commit()
+    db_session.refresh(ev)
+    r = client.post(
+        f"/me/recommendations/{ev.event_id}/respond",
+        headers=auth_headers,
+        json={"status": "dismissed"},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "dismissed"
+
+
+def test_me_recommendation_respond_without_token_returns_401(client):
+    assert (
+        client.post("/me/recommendations/1/respond", json={"status": "accepted"}).status_code
+        == 401
+    )
+
+
+def test_me_recommendation_respond_other_vehicle_not_allowed(
+    client, auth_headers, db_session
+):
+    from datetime import date
+    from decimal import Decimal
+
+    other = models.Vehicle(
+        license_plate="OTHER-EV-1",
+        owner_name="Other",
+        registered_at=date(2026, 1, 1),
+        phone="+79998887766",
+        current_balance=Decimal("100.00"),
+        autopay_enabled=False,
+        has_subscription=False,
+        subscription_type=None,
+        subscription_valid_until=None,
+        account_status="active",
+    )
+    db_session.add(other)
+    db_session.flush()
+    ev = models.RecommendationEvent(
+        vehicle_id=other.vehicle_id,
+        shown_at=datetime(2026, 10, 3, 12, 0, 0),
+        recommendation_type="repay_debt",
+        title="Other veh",
+        status="shown",
+        deep_link=None,
+    )
+    db_session.add(ev)
+    db_session.commit()
+    db_session.refresh(ev)
+    r = client.post(
+        f"/me/recommendations/{ev.event_id}/respond",
+        headers=auth_headers,
+        json={"status": "accepted"},
+    )
+    assert r.status_code == 404
+
+
+def test_me_recommendation_respond_invalid_status_returns_422_or_400(
+    client, auth_headers, db_session
+):
+    vid = client.get("/me/profile", headers=auth_headers).json()["vehicle_id"]
+    ev = models.RecommendationEvent(
+        vehicle_id=vid,
+        shown_at=datetime(2026, 10, 4, 12, 0, 0),
+        recommendation_type="topup_balance",
+        title="Bad status",
+        status="shown",
+        deep_link=None,
+    )
+    db_session.add(ev)
+    db_session.commit()
+    db_session.refresh(ev)
+    r = client.post(
+        f"/me/recommendations/{ev.event_id}/respond",
+        headers=auth_headers,
+        json={"status": "shown"},
+    )
+    assert r.status_code == 422
+
+
+def test_me_recommendation_respond_already_responded_behavior(
+    client, auth_headers, db_session
+):
+    vid = client.get("/me/profile", headers=auth_headers).json()["vehicle_id"]
+    ev = models.RecommendationEvent(
+        vehicle_id=vid,
+        shown_at=datetime(2026, 10, 5, 12, 0, 0),
+        recommendation_type="pay_before_deadline",
+        title="Done",
+        status="accepted",
+        responded_at=datetime(2026, 10, 5, 13, 0, 0),
+        deep_link=None,
+    )
+    db_session.add(ev)
+    db_session.commit()
+    db_session.refresh(ev)
+    r = client.post(
+        f"/me/recommendations/{ev.event_id}/respond",
+        headers=auth_headers,
+        json={"status": "dismissed"},
+    )
+    assert r.status_code == 400
+
+
+# --- Me summary ---
+
+
+def test_me_summary_without_token_returns_401(client):
+    assert client.get("/me/summary").status_code == 401
+
+
+def test_me_summary_with_token_returns_expected_sections(client, auth_headers):
+    r = client.get("/me/summary", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert "vehicle" in body
+    assert "balance" in body
+    assert "forecast" in body
+    assert "stats" in body
+    assert "recommendations" in body
+    assert "license_plate" in body["vehicle"]
+    assert "current_balance" in body["balance"]
+    assert "forecast_amount" in body["forecast"]
+    assert "total_spent" in body["stats"]
+
+
+def test_me_summary_recommendations_count(client, auth_headers, db_session):
+    vid = client.get("/me/profile", headers=auth_headers).json()["vehicle_id"]
+    for i in range(2):
+        db_session.add(
+            models.RecommendationEvent(
+                vehicle_id=vid,
+                shown_at=datetime(2026, 11, i + 1, 10, 0, 0),
+                recommendation_type="topup_balance",
+                title=f"C{i}",
+                status="shown",
+                deep_link=None,
+            )
+        )
+    db_session.commit()
+    body = client.get("/me/summary", headers=auth_headers).json()
+    assert body["recommendations"]["active_count"] >= 2
+    assert len(body["recommendations"]["latest"]) >= 2
+
+
+# --- Autopay ---
+
+
+def test_me_autopay_without_token_returns_401(client):
+    assert (
+        client.patch("/me/autopay", json={"autopay_enabled": True}).status_code == 401
+    )
+
+
+def test_me_autopay_enable_updates_vehicle(client, auth_headers):
+    r = client.patch(
+        "/me/autopay",
+        headers=auth_headers,
+        json={"autopay_enabled": True},
+    )
+    assert r.status_code == 200
+    assert r.json()["autopay_enabled"] is True
+    prof = client.get("/me/profile", headers=auth_headers).json()
+    assert prof["autopay_enabled"] is True
+
+
+def test_me_autopay_disable_updates_vehicle(client, auth_headers):
+    client.patch(
+        "/me/autopay",
+        headers=auth_headers,
+        json={"autopay_enabled": True},
+    )
+    r = client.patch(
+        "/me/autopay",
+        headers=auth_headers,
+        json={"autopay_enabled": False},
+    )
+    assert r.status_code == 200
+    assert r.json()["autopay_enabled"] is False
+
+
+# --- Health ---
+
+
+def test_health_live_returns_200(client):
+    r = client.get("/health/live")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
+
+
+def test_health_ready_returns_200_when_db_available(client):
+    r = client.get("/health/ready")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ready"
+    assert r.json()["database"] == "ok"

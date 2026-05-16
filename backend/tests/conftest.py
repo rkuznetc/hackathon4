@@ -86,3 +86,42 @@ def auth_headers(client):
     assert response.status_code == 201
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def admin_headers(client, db_session):
+    from datetime import date
+    from decimal import Decimal
+
+    from app import models
+    from app.security import get_password_hash
+
+    v = models.Vehicle(
+        license_plate="ADMIN-TEST-PL",
+        owner_name="Admin",
+        registered_at=date(2026, 1, 1),
+        phone="+79990000111",
+        current_balance=Decimal("0.00"),
+        autopay_enabled=False,
+        has_subscription=False,
+        subscription_type=None,
+        subscription_valid_until=None,
+        account_status="active",
+    )
+    db_session.add(v)
+    db_session.flush()
+    db_session.add(
+        models.User(
+            password_hash=get_password_hash("adminpass"),
+            vehicle_id=v.vehicle_id,
+            is_admin=True,
+        )
+    )
+    db_session.commit()
+
+    r = client.post(
+        "/auth/login",
+        json={"phone": "+79990000111", "password": "adminpass"},
+    )
+    assert r.status_code == 200
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
